@@ -4,21 +4,35 @@ const CONFIG = {
   maxWait: 480,
   hours: { 1: [8, 18], 2: [8, 18], 3: [8, 18], 4: [8, 18], 5: [8, 17], 6: [9, 13] } // 0 = Sunday, closed
 };
+const LANGS = ["en", "de", "fr", "it"];
 const DAYS = {
   en: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-  es: ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"]
+  de: ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"],
+  fr: ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"],
+  it: ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"]
 };
+// day: how a weekday reads after "Opens"; at: the opening hour (clinic hours are whole hours).
 const TEXT = {
-  en: { title: "Current wait", zero: "No wait right now. Walk in.", wait: m => "About " + m + " minutes",
+  en: { name: "English", keyword: "WAIT", title: "Current wait", zero: "No wait right now. Walk in.", wait: m => "About " + m + " minutes",
         upd: m => "Updated " + m + " min ago", stale: "This estimate may be out of date. Call to confirm.",
-        closed: "The clinic is closed now.", opens: s => "Opens " + s, today: "today",
-        nodata: "Wait time is not available right now. Please call.", sms: p => "No internet? Text WAIT to " + p + ".",
-        other: "Español" },
-  es: { title: "Espera actual", zero: "No hay espera ahora. Puede venir.", wait: m => "Unos " + m + " minutos",
-        upd: m => "Actualizado hace " + m + " min", stale: "Este dato puede estar desactualizado. Llame para confirmar.",
-        closed: "La clínica está cerrada ahora.", opens: s => "Abre " + s, today: "hoy",
-        nodata: "El tiempo de espera no está disponible ahora. Por favor llame.", sms: p => "¿Sin internet? Envíe ESPERA al " + p + ".",
-        other: "English" }
+        closed: "The clinic is closed now.", opens: s => "Opens " + s, today: "today", day: d => d,
+        at: h => " at " + (h % 12 || 12) + (h < 12 ? " AM" : " PM"),
+        nodata: "Wait time is not available right now. Please call.", sms: p => "No internet? Text WAIT to " + p + "." },
+  de: { name: "Deutsch", keyword: "WARTEN", title: "Aktuelle Wartezeit", zero: "Keine Wartezeit. Kommen Sie vorbei.", wait: m => "Etwa " + m + " Minuten",
+        upd: m => "Aktualisiert vor " + m + " Min.", stale: "Diese Angabe ist vielleicht veraltet. Bitte rufen Sie an.",
+        closed: "Die Klinik ist jetzt geschlossen.", opens: s => "Öffnet " + s, today: "heute", day: d => "am " + d,
+        at: h => " um " + h + ":00",
+        nodata: "Die Wartezeit ist im Moment nicht verfügbar. Bitte rufen Sie an.", sms: p => "Kein Internet? Senden Sie WARTEN an " + p + "." },
+  fr: { name: "Français", keyword: "ATTENTE", title: "Attente actuelle", zero: "Pas d'attente en ce moment. Venez directement.", wait: m => "Environ " + m + " minutes",
+        upd: m => "Mis à jour il y a " + m + " min", stale: "Cette estimation pourrait dater. Appelez pour confirmer.",
+        closed: "La clinique est fermée.", opens: s => "Ouvre " + s, today: "aujourd'hui", day: d => d,
+        at: h => " à " + h + " h",
+        nodata: "Le temps d'attente n'est pas disponible pour le moment. Veuillez appeler.", sms: p => "Pas d'internet ? Envoyez ATTENTE au " + p + "." },
+  it: { name: "Italiano", keyword: "ATTESA", title: "Attesa attuale", zero: "Nessuna attesa ora. Venga pure.", wait: m => "Circa " + m + " minuti",
+        upd: m => "Aggiornato " + m + " min fa", stale: "Questa stima potrebbe non essere aggiornata. Chiami per conferma.",
+        closed: "La clinica ora è chiusa.", opens: s => "Apre " + s, today: "oggi", day: d => d,
+        at: h => " alle " + h + ":00",
+        nodata: "Il tempo di attesa non è disponibile ora. Per favore chiami.", sms: p => "Senza internet? Invii ATTESA al " + p + "." }
 };
 
 function isOpen(now) {
@@ -32,15 +46,15 @@ function nextOpen(now, lang) {
   for (let i = 0; i < 8; i++) {
     const day = (now.getDay() + i) % 7, h = CONFIG.hours[day];
     if (!h || (i === 0 && t >= h[0])) continue;
-    const label = i === 0 ? TEXT[lang].today : (lang === "es" ? "el " : "") + DAYS[lang][day];
-    return lang === "es" ? label + " a las " + h[0] + ":00"
-                         : label + " at " + (h[0] % 12 || 12) + (h[0] < 12 ? " AM" : " PM");
+    const T = TEXT[lang];
+    return (i === 0 ? T.today : T.day(DAYS[lang][day])) + T.at(h[0]);
   }
   return "";
 }
 
 function statusMessage(s, now, lang) {
   const T = TEXT[lang] || TEXT.en;
+  lang = TEXT[lang] ? lang : "en";
   const closedMsg = { main: T.closed, sub: T.opens(nextOpen(now, lang)), warn: "" };
   if (!isOpen(now)) return closedMsg;
   // Only data set today counts: a Closed tap or a wait left over from yesterday must not carry into a new day.
@@ -54,9 +68,15 @@ function statusMessage(s, now, lang) {
            sub: T.upd(age), warn: age > CONFIG.staleMinutes ? T.stale : "" };
 }
 
+// Language of an incoming text: its first word matched against each language's keyword (English if none match).
+function smsLang(body) {
+  const word = String(body || "").trim().split(/\s+/)[0].toUpperCase();
+  return LANGS.find(l => TEXT[l].keyword === word) || "en";
+}
+
 function smsText(s, now, lang) {
   const r = statusMessage(s, now, lang);
   return [r.main, r.sub, r.warn].filter(Boolean).map(x => /[.!?]$/.test(x) ? x : x + ".").join(" ");
 }
 
-if (typeof module !== "undefined") module.exports = { CONFIG, TEXT, isOpen, nextOpen, statusMessage, smsText };
+if (typeof module !== "undefined") module.exports = { CONFIG, LANGS, TEXT, smsLang, isOpen, nextOpen, statusMessage, smsText };

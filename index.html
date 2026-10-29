@@ -26,11 +26,13 @@
   h1 { font-size: 1.25rem; margin: 1rem 0 0; }
   #main { font-size: clamp(1.5rem, 11vw, 2.5rem); font-weight: 700; margin: .5rem 0; }
   .warn { background: #fff3cd; border-left: 6px solid #b58100; padding: .75rem; }
-  button { font-size: 1.1rem; min-height: 48px; padding: .5rem 1rem; }
+  #langs { display: flex; flex-wrap: wrap; gap: .25rem; }
+  #langs button { font-size: 1rem; min-height: 48px; padding: .5rem .75rem; }
+  #langs button[aria-pressed="true"] { font-weight: 700; border: 2px solid #111; }
 </style>
 </head>
 <body>
-<button id="lang" type="button">Español</button>
+<div id="langs"></div>
 <h1 id="title">Current wait</h1>
 <p id="main" role="status" aria-live="polite">…</p>
 <p id="sub"></p>
@@ -39,7 +41,8 @@
 <script src="status.js"></script>
 <script>
   const $ = id => document.getElementById(id);
-  let lang = (navigator.language || "en").startsWith("es") ? "es" : "en";
+  const pick = (navigator.languages || [navigator.language || ""]).map(l => l.slice(0, 2)).find(l => LANGS.includes(l));
+  let lang = pick || "en";
   let data = null, loaded = false;
 
   function render() {
@@ -53,8 +56,7 @@
     $("warn").textContent = r.warn;
     $("warn").className = r.warn ? "warn" : "";
     $("sms").textContent = T.sms(CONFIG.phone);
-    $("lang").textContent = T.other;
-    $("lang").lang = lang === "en" ? "es" : "en";
+    for (const b of $("langs").children) b.setAttribute("aria-pressed", b.lang === lang);
   }
 
   async function load(pending) {
@@ -63,7 +65,12 @@
     render();
   }
 
-  $("lang").onclick = () => { lang = lang === "en" ? "es" : "en"; render(); };
+  for (const l of LANGS) {
+    const b = document.createElement("button");
+    b.type = "button"; b.lang = l; b.textContent = TEXT[l].name;
+    b.onclick = () => { lang = l; render(); };
+    $("langs").appendChild(b);
+  }
   render(); load(firstStatus); setInterval(() => load(), 60000);
 </script>
 </body>

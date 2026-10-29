@@ -15,8 +15,10 @@ sms=$(post "Body=WAIT"); echo "  $sms"
 [[ $sms == *"<Message>"* ]] && ok "T8 WAIT -> <Message>" || bad "T8 WAIT -> <Message>"
 len=$(echo "$sms" | sed -E 's/.*<Message>(.*)<\/Message>.*/\1/' | tr -d '\n' | wc -m)
 (( len <= 160 )) && ok "T8 length $len <= 160" || bad "T8 length $len"
-es=$(post "Body=espera"); echo "  $es"
-[[ $es == *Unos* || $es == *espera* || $es == *clínica* ]] && ok "T8 ESPERA -> Spanish" || bad "T8 ESPERA -> Spanish"
+for kw in "WARTEN:Klinik|Wartezeit|Minuten" "ATTENTE:clinique|attente|minutes" "ATTESA:clinica|attesa|minuti"; do
+  r=$(post "Body=${kw%%:*}"); echo "  $r"
+  [[ $r =~ ${kw#*:} ]] && ok "T8 ${kw%%:*} -> right language" || bad "T8 ${kw%%:*} -> right language"
+done
 call=$(curl -sL -X POST -d "CallSid=CAtest" "$URL"); echo "  $call"
 [[ $call == *"<Say>"* ]] && ok "T8 call -> <Say>" || bad "T8 call -> <Say>"
 

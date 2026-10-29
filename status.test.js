@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { statusMessage, smsText } = require("./status.js");
+const { LANGS, TEXT, statusMessage, smsText, smsLang } = require("./status.js");
 
 const at = (d, h, m = 0) => new Date(2026, 10, d, h, m);   // Nov 2026, local clinic time
 const TUE10 = at(3, 10);                                    // Tue 3 Nov 2026, 10:00
@@ -38,16 +38,21 @@ test("T7 clock skew", () => {
   const future = new Date(TUE10.getTime() + 120000).toISOString();
   assert.strictEqual(statusMessage({ waitMinutes: 10, updatedAt: future }, TUE10, "en").sub, "Updated 0 min ago");
 });
-test("T8 SMS fits one text, every state, both languages", () => {
+test("T8 SMS fits one text, every state, every language", () => {
   const states = [null, { waitMinutes: 0, updatedAt: ago(1) }, { waitMinutes: 120, updatedAt: ago(45) }, { closed: true }];
-  for (const lang of ["en", "es"]) for (const s of states) for (const now of [TUE10, at(3, 19)])
-    assert.ok(smsText(s, now, lang).length <= 160);
-  assert.match(smsText({ waitMinutes: 45, updatedAt: ago(5) }, TUE10, "es"), /^Unos 45 minutos/);
+  for (const lang of LANGS) for (const s of states) for (const now of [TUE10, at(3, 19)])
+    assert.ok(smsText(s, now, lang).length <= 160, lang + ": " + smsText(s, now, lang));
+  assert.match(smsText({ waitMinutes: 45, updatedAt: ago(5) }, TUE10, "de"), /^Etwa 45 Minuten/);
+  assert.match(smsText({ waitMinutes: 45, updatedAt: ago(5) }, TUE10, "fr"), /^Environ 45 minutes/);
+  assert.match(smsText({ waitMinutes: 45, updatedAt: ago(5) }, TUE10, "it"), /^Circa 45 minuti/);
 });
 test("T5b Closed tapped yesterday does not close today", () => {
   const s = { waitMinutes: 30, updatedAt: at(2, 17, 55).toISOString(), closed: true };   // Mon 17:55
   assert.match(statusMessage(s, TUE10, "en").main, /not available/);
-  assert.strictEqual(statusMessage(s, at(3, 19), "es").sub, "Abre el miércoles a las 8:00");
+  assert.strictEqual(statusMessage(s, at(3, 19), "de").sub, "Öffnet am Mittwoch um 8:00");
+  assert.strictEqual(statusMessage(s, at(3, 19), "fr").sub, "Ouvre mercredi à 8 h");
+  assert.strictEqual(statusMessage(s, at(3, 19), "it").sub, "Apre mercoledì alle 8:00");
+  assert.strictEqual(statusMessage(s, at(7, 7), "de").sub, "Öffnet heute um 9:00");
 });
 test("T6b yesterday's wait is not shown as today's", () => {
   const r = statusMessage({ waitMinutes: 30, updatedAt: at(2, 17, 30).toISOString() }, at(3, 8, 5), "en");
@@ -55,4 +60,12 @@ test("T6b yesterday's wait is not shown as today's", () => {
 });
 test("T8b SMS sentences are punctuated", () => {
   assert.strictEqual(smsText({ waitMinutes: 45, updatedAt: ago(5) }, TUE10, "en"), "About 45 minutes. Updated 5 min ago.");
+});
+test("T8c text keyword picks the language", () => {
+  for (const [body, lang] of [["WAIT", "en"], ["warten", "de"], [" Attente ", "fr"], ["ATTESA please", "it"],
+                              ["hello", "en"], ["", "en"], [undefined, "en"]])
+    assert.strictEqual(smsLang(body), lang, String(body));
+});
+test("every language has every string", () => {
+  for (const lang of LANGS) assert.deepStrictEqual(Object.keys(TEXT[lang]).sort(), Object.keys(TEXT.en).sort(), lang);
 });
