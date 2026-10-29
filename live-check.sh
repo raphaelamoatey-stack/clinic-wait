@@ -20,7 +20,7 @@ for kw in "WARTEN:Klinik|Wartezeit|Minuten" "ATTENTE:clinique|attente|minutes" "
   [[ $r =~ ${kw#*:} ]] && ok "T8 ${kw%%:*} -> right language" || bad "T8 ${kw%%:*} -> right language"
 done
 call=$(curl -sL -X POST -d "CallSid=CAtest" "$URL"); echo "  $call"
-[[ $call == *"<Say>"* ]] && ok "T8 call -> <Say>" || bad "T8 call -> <Say>"
+[[ $call == *"<Say "* && $call != *"<Message"* ]] && ok "T8 call -> spoken <Say>" || bad "T8 call -> spoken <Say>"
 
 [[ $(curl -sL "$URL?staff=1&pin=wrong") == *"Not authorized"* ]] && ok "T9 wrong PIN blocked" || bad "T9 wrong PIN blocked"
 if [[ -n $PIN ]]; then
