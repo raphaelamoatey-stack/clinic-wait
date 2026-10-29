@@ -1,5 +1,5 @@
 const CONFIG = {
-  phone: "(555) 010-0000",          // clinic phone, shown when data is missing
+  phone: "+41 76 320 02 83",         // clinic phone, shown when data is missing
   staleMinutes: 30,
   maxWait: 480,
   hours: { 1: [8, 18], 2: [8, 18], 3: [8, 18], 4: [8, 18], 5: [8, 17], 6: [9, 13] } // 0 = Sunday, closed

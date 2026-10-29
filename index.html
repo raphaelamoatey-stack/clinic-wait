@@ -49,7 +49,7 @@
     $("title").textContent = T.title;
     $("main").textContent = r.main;
     $("sub").textContent = r.sub;
-    if (r.sub === CONFIG.phone) $("sub").innerHTML = '<a href="tel:' + CONFIG.phone.replace(/\D/g, "") + '">' + CONFIG.phone + "</a>";
+    if (r.sub === CONFIG.phone) $("sub").innerHTML = '<a href="tel:' + CONFIG.phone.replace(/[^\d+]/g, "") + '">' + CONFIG.phone + "</a>";
     $("warn").textContent = r.warn;
     $("warn").className = r.warn ? "warn" : "";
     $("sms").textContent = T.sms(CONFIG.phone);
