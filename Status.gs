@@ -12,24 +12,25 @@ const DAYS = {
   fr: ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"],
   it: ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"]
 };
+// spoken: changes for phone calls (full words instead of abbreviations).
 // day: how a weekday reads after "Opens"; at: the opening hour (clinic hours are whole hours).
 const TEXT = {
-  en: { voice: "en-GB", name: "English", keyword: "WAIT", title: "Current wait", zero: "No wait right now. Walk in.", wait: m => "About " + m + " minutes",
+  en: { spoken: t => t, voice: "en-GB", name: "English", keyword: "WAIT", title: "Current wait", zero: "No wait right now. Walk in.", wait: m => "About " + m + " minutes",
         upd: m => "Updated " + m + " min ago", stale: "This estimate may be out of date. Call to confirm.",
         closed: "The clinic is closed now.", opens: s => "Opens " + s, today: "today", day: d => d,
         at: h => " at " + (h % 12 || 12) + (h < 12 ? " AM" : " PM"),
         nodata: "Wait time is not available right now. Please call.", sms: p => "No internet? Text WAIT to " + p + "." },
-  de: { voice: "de-DE", name: "Deutsch", keyword: "WARTEN", title: "Aktuelle Wartezeit", zero: "Keine Wartezeit. Kommen Sie vorbei.", wait: m => "Etwa " + m + " Minuten",
+  de: { spoken: t => t.replace(/(\d+) Min\./, (_, m) => m + (m === "1" ? " Minute." : " Minuten.")), voice: "de-DE", name: "Deutsch", keyword: "WARTEN", title: "Aktuelle Wartezeit", zero: "Keine Wartezeit. Kommen Sie vorbei.", wait: m => "Etwa " + m + " Minuten",
         upd: m => "Aktualisiert vor " + m + " Min.", stale: "Diese Angabe ist vielleicht veraltet. Bitte rufen Sie an.",
         closed: "Die Klinik ist jetzt geschlossen.", opens: s => "Öffnet " + s, today: "heute", day: d => "am " + d,
         at: h => " um " + h + ":00",
         nodata: "Die Wartezeit ist im Moment nicht verfügbar. Bitte rufen Sie an.", sms: p => "Kein Internet? Senden Sie WARTEN an " + p + "." },
-  fr: { voice: "fr-FR", name: "Français", keyword: "ATTENTE", title: "Attente actuelle", zero: "Pas d'attente en ce moment. Venez directement.", wait: m => "Environ " + m + " minutes",
+  fr: { spoken: t => t, voice: "fr-FR", name: "Français", keyword: "ATTENTE", title: "Attente actuelle", zero: "Pas d'attente en ce moment. Venez directement.", wait: m => "Environ " + m + " minutes",
         upd: m => "Mis à jour il y a " + m + " min", stale: "Cette estimation pourrait dater. Appelez pour confirmer.",
         closed: "La clinique est fermée.", opens: s => "Ouvre " + s, today: "aujourd'hui", day: d => d,
         at: h => " à " + h + " h",
         nodata: "Le temps d'attente n'est pas disponible pour le moment. Veuillez appeler.", sms: p => "Pas d'internet ? Envoyez ATTENTE au " + p + "." },
-  it: { voice: "it-IT", name: "Italiano", keyword: "ATTESA", title: "Attesa attuale", zero: "Nessuna attesa ora. Venga pure.", wait: m => "Circa " + m + " minuti",
+  it: { spoken: t => t, voice: "it-IT", name: "Italiano", keyword: "ATTESA", title: "Attesa attuale", zero: "Nessuna attesa ora. Venga pure.", wait: m => "Circa " + m + " minuti",
         upd: m => "Aggiornato " + m + " min fa", stale: "Questa stima potrebbe non essere aggiornata. Chiami per conferma.",
         closed: "La clinica ora è chiusa.", opens: s => "Apre " + s, today: "oggi", day: d => d,
         at: h => " alle " + h + ":00",
@@ -85,7 +86,7 @@ function smsText(s, now, lang) {
 function twiml(s, now, body) {
   const clean = t => t.replace(/[<&>]/g, "");
   const xml = body === undefined
-    ? CONFIG.voiceLangs.map(l => '<Say language="' + TEXT[l].voice + '">' + clean(smsText(s, now, l)) + "</Say>").join('<Pause length="1"/>')
+    ? CONFIG.voiceLangs.map(l => '<Say language="' + TEXT[l].voice + '">' + clean(TEXT[l].spoken(smsText(s, now, l))) + "</Say>").join('<Pause length="1"/>')
     : "<Message>" + clean(smsText(s, now, smsLang(body))) + "</Message>";
   return '<?xml version="1.0" encoding="UTF-8"?><Response>' + xml + "</Response>";
 }

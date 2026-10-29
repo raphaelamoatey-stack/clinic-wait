@@ -72,9 +72,11 @@ test("every language has every string", () => {
 test("T8d call hears German then French; text gets one <Message>", () => {
   const s = { waitMinutes: 45, updatedAt: ago(5) };
   assert.strictEqual(twiml(s, TUE10, undefined), '<?xml version="1.0" encoding="UTF-8"?><Response>' +
-    '<Say language="de-DE">Etwa 45 Minuten. Aktualisiert vor 5 Min.</Say><Pause length="1"/>' +
+    '<Say language="de-DE">Etwa 45 Minuten. Aktualisiert vor 5 Minuten.</Say><Pause length="1"/>' +
     '<Say language="fr-FR">Environ 45 minutes. Mis à jour il y a 5 min.</Say></Response>');
   assert.strictEqual(twiml(s, TUE10, "ATTESA"),
     '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Circa 45 minuti. Aggiornato 5 min fa.</Message></Response>');
-  assert.doesNotMatch(twiml(null, TUE10, ""), /<Say/);   // an empty text is still a text, not a call
+  assert.doesNotMatch(twiml(null, TUE10, ""), /<Say/);
+  assert.match(twiml({ waitMinutes: 45, updatedAt: ago(1) }, TUE10, undefined), /vor 1 Minute\.</);
+  assert.match(twiml(s, TUE10, "WARTEN"), /vor 5 Min\.</);   // texts keep the short form   // an empty text is still a text, not a call
 });
