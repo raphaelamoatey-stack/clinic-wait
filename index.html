@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Clinic wait time</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<script>
+  // Start the status request now, so it downloads alongside status.js instead of after it.
+  const API = "https://script.google.com/macros/s/DEPLOYMENT_ID/exec";
+  async function getStatus() {
+    try {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 8000);
+      const res = await fetch(API, { signal: ctl.signal, cache: "no-store" });
+      clearTimeout(timer);
+      return res.ok ? await res.json() : null;
+    } catch (e) { return null; }
+  }
+  const firstStatus = getStatus();
+</script>
+<style>
+  body { font: 1.25rem/1.4 system-ui, sans-serif; max-width: 32rem; margin: 0 auto; padding: 1rem; color: #111; background: #fff; overflow-wrap: break-word; }
+  h1 { font-size: 1.25rem; margin: 1rem 0 0; }
+  #main { font-size: clamp(1.5rem, 11vw, 2.5rem); font-weight: 700; margin: .5rem 0; }
+  .warn { background: #fff3cd; border-left: 6px solid #b58100; padding: .75rem; }
+  button { font-size: 1.1rem; min-height: 48px; padding: .5rem 1rem; }
+</style>
+</head>
+<body>
+<button id="lang" type="button">Español</button>
+<h1 id="title">Current wait</h1>
+<p id="main" role="status" aria-live="polite">…</p>
+<p id="sub"></p>
+<p id="warn"></p>
+<p id="sms"></p>
+<script src="status.js"></script>
+<script>
+  const $ = id => document.getElementById(id);
+  let lang = (navigator.language || "en").startsWith("es") ? "es" : "en";
+  let data = null, loaded = false;
+
+  function render() {
+    const T = TEXT[lang], r = loaded ? statusMessage(data, new Date(), lang) : { main: "…", sub: "", warn: "" };
+    document.documentElement.lang = lang;
+    document.title = T.title;
+    $("title").textContent = T.title;
+    $("main").textContent = r.main;
+    $("sub").textContent = r.sub;
+    if (r.sub === CONFIG.phone) $("sub").innerHTML = '<a href="tel:' + CONFIG.phone.replace(/\D/g, "") + '">' + CONFIG.phone + "</a>";
+    $("warn").textContent = r.warn;
+    $("warn").className = r.warn ? "warn" : "";
+    $("sms").textContent = T.sms(CONFIG.phone);
+    $("lang").textContent = T.other;
+    $("lang").lang = lang === "en" ? "es" : "en";
+  }
+
+  async function load(pending) {
+    data = await (pending || getStatus());
+    loaded = true;
+    render();
+  }
+
+  $("lang").onclick = () => { lang = lang === "en" ? "es" : "en"; render(); };
+  render(); load(firstStatus); setInterval(() => load(), 60000);
+</script>
+</body>
+</html>

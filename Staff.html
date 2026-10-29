@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<body style="font:1.3rem system-ui,sans-serif;padding:1rem">
+<h1>Set current wait</h1>
+<div id="btns"></div>
+<p id="now" role="status">…</p>
+<script>
+  const show = s => document.getElementById("now").textContent = !s.updatedAt ? "Showing: nothing set yet" :
+    s.closed ? "Showing: CLOSED" : "Showing: " + s.waitMinutes + " min (updated " + new Date(s.updatedAt).toLocaleTimeString() + ")";
+  const fail = () => document.getElementById("now").textContent = "Not saved. Try again.";
+  const add = (label, fn) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.style.cssText = "font-size:1.5rem;min-width:30%;min-height:72px;margin:.25rem";
+    b.onclick = fn;
+    document.getElementById("btns").appendChild(b);
+  };
+  [0, 15, 30, 45, 60, 90, 120].forEach(n =>
+    add(n + " min", () => google.script.run.withSuccessHandler(show).withFailureHandler(fail).setWait(n)));
+  add("Closed", () => google.script.run.withSuccessHandler(show).withFailureHandler(fail).setClosed());
+  google.script.run.withSuccessHandler(show).readStatus();
+</script>
+</body>
+</html>
