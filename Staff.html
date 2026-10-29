@@ -1,24 +1,132 @@
 <!doctype html>
 <html lang="en">
-<body style="font:1.3rem system-ui,sans-serif;padding:1rem">
-<h1>Set current wait</h1>
-<div id="btns"></div>
-<p id="now" role="status">…</p>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<title>Front desk: wait time</title>
+<style>
+  :root { --ink: #111; --muted: #444; --line: #767676; --accent: #0a4f96; --warn-bg: #fff3cd; --warn-edge: #8a6100;
+          --ok-bg: #e7f4ea; --ok: #1d6b2f; --err-bg: #fde8e8; --err: #a1160a; }
+  * { box-sizing: border-box; }
+  body { font: 1.25rem/1.4 system-ui, sans-serif; max-width: 48rem; margin: 0 auto; padding: 1rem 1.25rem; color: var(--ink); background: #fff; }
+  p { margin: 0; }
+  h1 { font-size: 1.5rem; margin: 0 0 .75rem; }
+  h2 { font-size: 1.25rem; margin: 1.25rem 0 .5rem; }
+  .card { border: 2px solid var(--ink); border-radius: .75rem; padding: 1rem; }
+  .label { font-size: 1rem; color: var(--muted); }
+  #preview { font-size: 2rem; font-weight: 800; line-height: 1.2; margin: .25rem 0; }
+  #nudge:not(:empty) { background: var(--warn-bg); border-left: 6px solid var(--warn-edge); padding: .5rem .75rem; margin-top: .75rem; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; }
+  @media (max-width: 30rem) { .grid { grid-template-columns: repeat(3, 1fr); } }
+  button { font: inherit; border-radius: .75rem; cursor: pointer; }
+  .grid button { min-height: 88px; font-size: 1.75rem; font-weight: 800; color: var(--ink); background: #fff; border: 2px solid var(--line); }
+  .grid button small { display: block; font-size: 1rem; font-weight: 400; }
+  .grid button[aria-pressed="true"] { color: #fff; background: var(--ink); border-color: var(--ink); }
+  #close { display: block; width: 100%; min-height: 64px; margin-top: 1.5rem; font-weight: 700; color: var(--err); background: #fff; border: 2px solid var(--err); }
+  #close[aria-pressed="true"] { color: #fff; background: var(--err); }
+  button:disabled { cursor: wait; }
+  button:disabled:not([aria-busy="true"]) { opacity: .55; }
+  #result:not(:empty) { margin-top: 1rem; padding: .75rem; border-radius: .5rem; background: var(--ok-bg); border-left: 6px solid var(--ok); }
+  #result.pending { background: #eef2f7; border-left-color: var(--accent); }
+  #problem:not(:empty) { margin-top: 1rem; padding: .75rem; border-radius: .5rem; background: var(--err-bg); border-left: 6px solid var(--err); }
+  :focus-visible { outline: 4px solid var(--accent); outline-offset: 3px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Front desk: wait time</h1>
+  <section class="card" aria-labelledby="see">
+    <p class="label" id="see">Patients see now</p>
+    <p id="preview">Loading…</p>
+    <p id="age"></p>
+    <p id="nudge"></p>
+  </section>
+  <h2 id="pick">Tap the current wait</h2>
+  <div class="grid" role="group" aria-labelledby="pick" id="waits"></div>
+  <button id="close" type="button" aria-pressed="false">Close for the day</button>
+  <p id="result" role="status"></p>
+  <p id="problem" role="alert"></p>
+</main>
 <script>
-  const show = s => document.getElementById("now").textContent = !s.updatedAt ? "Showing: nothing set yet" :
-    s.closed ? "Showing: CLOSED" : "Showing: " + s.waitMinutes + " min (updated " + new Date(s.updatedAt).toLocaleTimeString() + ")";
-  const fail = () => document.getElementById("now").textContent = "Not saved. Try again.";
-  const add = (label, fn) => {
+  const WAITS = [0, 15, 30, 45, 60, 90, 120];
+  const STALE = 30;
+  const $ = id => document.getElementById(id);
+  const hhmm = d => new Date(d).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" });   // 24-hour clock, as on the clinic's door
+  const minsAgo = d => Math.max(0, Math.floor((Date.now() - new Date(d)) / 60000));
+  const sentence = t => /[.!?]$/.test(t) ? t : t + ".";
+  const today = d => d && new Date(d).toDateString() === new Date().toDateString();
+  let view = null, busy = false, saidAt = 0;   // saidAt: when the last save result was shown
+  const say = (id, text) => { $(id).textContent = text; saidAt = Date.now(); };
+
+  function render() {
+    // A save result is only news for a few minutes; after that the card above says it all.
+    if (saidAt && Date.now() - saidAt > 5 * 60000) { $("result").textContent = ""; $("problem").textContent = ""; saidAt = 0; }
+    if (!view) return;
+    const s = view.status, setToday = today(s.updatedAt);
+    $("preview").textContent = view.preview.main;
+    $("age").textContent = !setToday ? "Nothing set yet today."
+      : (s.closed ? "Closed at " : "Set at ") + hhmm(s.updatedAt) + (minsAgo(s.updatedAt) === 0 ? " (just now)." : " (" + minsAgo(s.updatedAt) + " min ago).");
+    $("nudge").textContent =
+      !view.open ? "The clinic is outside opening hours, so patients see “closed” whatever you tap."
+      : setToday && s.closed ? "Closed. To reopen, tap a wait time."
+      : !setToday ? "Patients see “not available”. Tap the current wait."
+      : minsAgo(s.updatedAt) > STALE ? "Patients now see an “out of date” warning. Tap the current wait, even if it hasn’t changed."
+      : "";
+    for (const b of $("waits").children) b.setAttribute("aria-pressed", setToday && !s.closed && s.waitMinutes === Number(b.value));
+    $("close").setAttribute("aria-pressed", !!(setToday && s.closed));
+  }
+
+  // Disabling a focused button drops keyboard and screen-reader focus to the page, so give it back afterwards.
+  let hadFocus = false;
+  function lock(on, tapped) {
+    busy = on;
+    if (on) hadFocus = document.activeElement === tapped;
+    for (const b of document.querySelectorAll("button")) b.disabled = on;
+    if (tapped) {
+      if (on) { tapped.dataset.label = tapped.innerHTML; tapped.innerHTML = "Saving…"; tapped.setAttribute("aria-busy", "true"); }
+      else { tapped.innerHTML = tapped.dataset.label; tapped.removeAttribute("aria-busy"); if (hadFocus) tapped.focus(); }
+    }
+  }
+
+  function save(fn, arg, label, tapped) {
+    if (busy) return;
+    lock(true, tapped);
+    $("problem").textContent = "";
+    $("result").textContent = "Saving " + label + "…";
+    $("result").className = "pending";
+    google.script.run
+      .withSuccessHandler(v => {
+        view = v; lock(false, tapped); render();
+        $("result").className = "";
+        say("result", "Saved at " + hhmm(v.status.updatedAt) + ". Patients now see: " + sentence(v.preview.main));
+      })
+      .withFailureHandler(() => {
+        lock(false, tapped); render();
+        $("result").textContent = ""; $("result").className = "";
+        say("problem", "Not saved. The tablet may be offline. Patients still see: " +
+          (view ? sentence(view.preview.main) : "the last saved value.") + " Check the Wi-Fi and tap again.");
+      })[fn](arg);
+  }
+
+  function refresh() {
+    if (busy) return;
+    google.script.run
+      .withSuccessHandler(v => { view = v; render(); if (/can.t check/.test($("problem").textContent)) $("problem").textContent = ""; })
+      .withFailureHandler(() => { $("problem").textContent = "Offline: can’t check what patients see. Check the Wi-Fi."; })
+      .staffView();
+  }
+
+  for (const n of WAITS) {
     const b = document.createElement("button");
-    b.textContent = label;
-    b.style.cssText = "font-size:1.5rem;min-width:30%;min-height:72px;margin:.25rem";
-    b.onclick = fn;
-    document.getElementById("btns").appendChild(b);
-  };
-  [0, 15, 30, 45, 60, 90, 120].forEach(n =>
-    add(n + " min", () => google.script.run.withSuccessHandler(show).withFailureHandler(fail).setWait(n)));
-  add("Closed", () => google.script.run.withSuccessHandler(show).withFailureHandler(fail).setClosed());
-  google.script.run.withSuccessHandler(show).readStatus();
+    b.type = "button"; b.value = n;
+    b.innerHTML = n + " <small>" + (n === 0 ? "min · no wait" : "min") + "</small>";
+    b.onclick = () => save("setWait", n, n + " min", b);
+    $("waits").appendChild(b);
+  }
+  $("close").onclick = () => save("setClosed", undefined, "Closed", $("close"));
+  refresh();
+  setInterval(render, 30000);     // keep "min ago" and the out-of-date nudge current
+  setInterval(refresh, 60000);    // pick up changes made in the Sheet or on another device
 </script>
 </body>
 </html>

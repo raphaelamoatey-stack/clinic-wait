@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Clinic wait time</title>
+<title>Wait time now</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
@@ -22,54 +22,76 @@
   const firstStatus = getStatus();
 </script>
 <style>
-  body { font: 1.25rem/1.4 system-ui, sans-serif; max-width: 32rem; margin: 0 auto; padding: 1rem; color: #111; background: #fff; overflow-wrap: break-word; }
-  h1 { font-size: 1.25rem; margin: 1rem 0 0; }
-  #main { font-size: clamp(1.5rem, 11vw, 2.5rem); font-weight: 700; margin: .5rem 0; }
-  .warn { background: #fff3cd; border-left: 6px solid #b58100; padding: .75rem; }
-  #langs { display: flex; flex-wrap: wrap; gap: .25rem; }
-  #langs button { font-size: 1rem; min-height: 48px; padding: .5rem .75rem; }
-  #langs button[aria-pressed="true"] { font-weight: 700; border: 2px solid #111; }
+  :root { --ink: #111; --muted: #444; --bg: #fff; --line: #767676; --accent: #0a4f96; --warn-bg: #fff3cd; --warn-edge: #8a6100; }
+  * { box-sizing: border-box; }
+  body { font: 1.25rem/1.4 system-ui, sans-serif; max-width: 32rem; margin: 0 auto; padding: .75rem 1rem 1rem; color: var(--ink); background: var(--bg); overflow-wrap: break-word; }
+  p { margin: 0; }
+  #clinic { font-size: 1rem; color: var(--muted); }
+  h1 { font-size: 1.25rem; margin: 0; }
+  #main { font-size: clamp(1.5rem, 11vw, 2.75rem); font-weight: 800; line-height: 1.15; margin: .5rem 0; }
+  #warn:not(:empty) { background: var(--warn-bg); border-left: 6px solid var(--warn-edge); padding: .5rem .75rem; margin-bottom: .5rem; }
+  #sub { color: var(--muted); }
+  .call { display: block; margin: 1rem 0 .5rem; padding: .625rem 1rem; min-height: 56px; border-radius: .5rem; background: var(--accent); color: #fff; text-align: center; text-decoration: none; font-weight: 700; }
+  .call span { display: block; font-weight: 400; font-size: 1rem; }
+  #sms { font-size: 1rem; color: var(--muted); }
+  nav { margin-top: .75rem; padding-top: .5rem; border-top: 1px solid var(--line); }
+  nav ul { display: flex; flex-wrap: wrap; gap: .25rem; list-style: none; margin: 0; padding: 0; }
+  nav button { font: inherit; font-size: 1rem; min-height: 48px; padding: .25rem .625rem; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: .375rem; }
+  nav button[aria-pressed="true"] { border: 2px solid var(--ink); font-weight: 700; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .call:focus-visible { outline-color: var(--ink); }
 </style>
 </head>
 <body>
-<div id="langs"></div>
-<h1 id="title">Current wait</h1>
-<p id="main" role="status" aria-live="polite">…</p>
-<p id="sub"></p>
-<p id="warn"></p>
-<p id="sms"></p>
+<main>
+  <p id="clinic"></p>
+  <h1 id="title">Wait time now</h1>
+  <p id="main" role="status"></p>
+  <p id="warn" role="status"></p>
+  <p id="sub"></p>
+  <a id="call" class="call" href="#"></a>
+  <p id="sms"></p>
+</main>
+<nav id="nav"><ul id="langs"></ul></nav>
 <script src="status.js"></script>
 <script>
   const $ = id => document.getElementById(id);
+  // Live regions announce every write, so only write when the text actually changes.
+  const put = (el, text) => { if (el.textContent !== text) el.textContent = text; };
   const pick = (navigator.languages || [navigator.language || ""]).map(l => l.slice(0, 2)).find(l => LANGS.includes(l));
   let lang = pick || "en";
   let data = null, loaded = false;
 
   function render() {
-    const T = TEXT[lang], r = loaded ? statusMessage(data, new Date(), lang) : { main: "…", sub: "", warn: "" };
+    const T = TEXT[lang];
+    const r = loaded ? statusMessage(data, new Date(), lang) : { main: T.loading, sub: "", warn: "", until: "" };
     document.documentElement.lang = lang;
     document.title = T.title;
-    $("title").textContent = T.title;
-    $("main").textContent = r.main;
-    $("sub").textContent = r.sub;
-    if (r.sub === CONFIG.phone) $("sub").innerHTML = '<a href="tel:' + CONFIG.phone.replace(/[^\d+]/g, "") + '">' + CONFIG.phone + "</a>";
-    $("warn").textContent = r.warn;
-    $("warn").className = r.warn ? "warn" : "";
-    $("sms").textContent = T.sms(CONFIG.phone);
-    for (const b of $("langs").children) b.setAttribute("aria-pressed", b.lang === lang);
+    put($("clinic"), CONFIG.clinicName);
+    put($("title"), T.title);
+    put($("main"), r.main);
+    put($("warn"), r.warn);
+    put($("sub"), [r.sub === CONFIG.phone ? "" : r.sub, r.until].filter(Boolean).join(" · "));
+    $("call").href = "tel:" + CONFIG.phone.replace(/[^\d+]/g, "");
+    $("call").innerHTML = T.call + "<span>" + CONFIG.phone + "</span>";
+    put($("sms"), T.sms(CONFIG.phone));
+    $("nav").setAttribute("aria-label", T.nav);
+    for (const b of $("langs").querySelectorAll("button")) b.setAttribute("aria-pressed", b.lang === lang);
   }
 
   async function load(pending) {
-    data = await (pending || getStatus());
+    const fresh = await (pending || getStatus());
+    // A failed refresh keeps the last answer; its age keeps counting, so the stale warning still appears.
+    if (fresh !== null || !loaded) data = fresh;
     loaded = true;
     render();
   }
 
   for (const l of LANGS) {
-    const b = document.createElement("button");
+    const li = document.createElement("li"), b = document.createElement("button");
     b.type = "button"; b.lang = l; b.textContent = TEXT[l].name;
     b.onclick = () => { lang = l; render(); };
-    $("langs").appendChild(b);
+    li.appendChild(b); $("langs").appendChild(li);
   }
   render(); load(firstStatus); setInterval(() => load(), 60000);
 </script>
