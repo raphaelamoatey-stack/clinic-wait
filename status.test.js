@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { LANGS, TEXT, statusMessage, smsText, smsLang } = require("./status.js");
+const { LANGS, TEXT, statusMessage, smsText, smsLang, twiml } = require("./status.js");
 
 const at = (d, h, m = 0) => new Date(2026, 10, d, h, m);   // Nov 2026, local clinic time
 const TUE10 = at(3, 10);                                    // Tue 3 Nov 2026, 10:00
@@ -68,4 +68,13 @@ test("T8c text keyword picks the language", () => {
 });
 test("every language has every string", () => {
   for (const lang of LANGS) assert.deepStrictEqual(Object.keys(TEXT[lang]).sort(), Object.keys(TEXT.en).sort(), lang);
+});
+test("T8d call hears German then French; text gets one <Message>", () => {
+  const s = { waitMinutes: 45, updatedAt: ago(5) };
+  assert.strictEqual(twiml(s, TUE10, undefined), '<?xml version="1.0" encoding="UTF-8"?><Response>' +
+    '<Say language="de-DE">Etwa 45 Minuten. Aktualisiert vor 5 Min.</Say><Pause length="1"/>' +
+    '<Say language="fr-FR">Environ 45 minutes. Mis à jour il y a 5 min.</Say></Response>');
+  assert.strictEqual(twiml(s, TUE10, "ATTESA"),
+    '<?xml version="1.0" encoding="UTF-8"?><Response><Message>Circa 45 minuti. Aggiornato 5 min fa.</Message></Response>');
+  assert.doesNotMatch(twiml(null, TUE10, ""), /<Say/);   // an empty text is still a text, not a call
 });

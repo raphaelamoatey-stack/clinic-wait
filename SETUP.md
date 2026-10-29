@@ -33,6 +33,7 @@ Open `<Web app URL>?staff=1&pin=<your PIN>` and bookmark it to the home screen.
 - **Change the wait:** tap a button on the tablet. At closing, tap **Closed**. (A Closed tap ends at midnight; until staff tap a wait the next day, patients see "not available, please call".)
 - **Fix a number by hand:** edit row 2 of the Sheet.
 - **Change the PIN (monthly):** edit `PIN` in `Code.gs` → **Deploy → Manage deployments → Edit → New version → Deploy**. Update the tablet bookmark.
+- **Change the languages a caller hears:** edit `voiceLangs` near the top of `status.js` (for example `["de"]` for German only, or `["de", "fr", "it"]`). Then update it in both places as below.
 - **Change hours or phone:** edit `status.js` on GitHub *and* the `Status` file in Apps Script (then deploy a new version as above). The two must match.
 
 ## Check it works

@@ -30,8 +30,5 @@ function setClosed() {
 // Twilio webhook for texts and calls. Reads only; never stores the caller's number.
 function doPost(e) {
   const p = e.parameter || {};
-  const msg = smsText(readStatus(), new Date(), smsLang(p.Body)).replace(/[<&>]/g, "");
-  const tag = p.Body === undefined ? "Say" : "Message";
-  const xml = '<?xml version="1.0" encoding="UTF-8"?><Response><' + tag + '>' + msg + '</' + tag + '></Response>';
-  return ContentService.createTextOutput(xml).setMimeType(ContentService.MimeType.XML);
+  return ContentService.createTextOutput(twiml(readStatus(), new Date(), p.Body)).setMimeType(ContentService.MimeType.XML);
 }
